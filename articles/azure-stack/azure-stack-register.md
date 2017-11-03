@@ -66,16 +66,19 @@ Register-AzureRmResourceProvider -ProviderNamespace Microsoft.AzureStack
 1. [Install PowerShell for Azure Stack](azure-stack-powershell-install.md). 
 2. Copy the [RegisterWithAzure.psm1 script](https://go.microsoft.com/fwlink/?linkid=842959) to a folder (such as C:\Temp).
 3. Start PowerShell ISE as an administrator and import the RegisterWithAzure module.    
-4. From the RegisterWithAzure.psm1 script, run the Add-AzsRegistration module. Replace the following placeholders: 
-    - *YourCloudAdminCredential* is a PowerShell object that contains the local domain credentials for the domain\cloudadmin (for the development kit, this is azurestack\cloudadmin).
-    - *YourAzureSubscriptionID* is the ID of the Azure subscription that you want to use to register Azure Stack.
-    - *YourAzureDirectoryTenantName* is the name of the Azure tenant directory associated with your Azure subscription. The registration resource will be created in this directory tenant. 
+4. Ensure you are logged into the correct Azure Powershell context that you want to register your Azure Stack environment with
+
+    ```Powershell
+    Set-AzureRmContext -SubscriptionId $YourAzureSubscriptionId
+    ```
+    
+5. From the RegisterWithAzure.psm1 module, run the Set-AzsRegistration function. Replace the following placeholders: 
+    - *YourCloudAdminCredential* is a PowerShell object that contains the local domain credentials for the domain\cloudadmin (for the development kit, this is azurestack\cloudadmin). 
     - *YourPrivilegedEndpoint* is the name of the [privileged end point](azure-stack-privileged-endpoint.md).
 
     ```powershell
-    Add-AzsRegistration -CloudAdminCredential $YourCloudAdminCredential -AzureDirectoryTenantName $YourAzureDirectoryTenantName  -AzureSubscriptionId $YourAzureSubscriptionId -PrivilegedEndpoint $YourPrivilegedEndpoint -BillingModel Development 
+    Set-AzsRegistration -CloudAdminCredential $YourCloudAdminCredential -PrivilegedEndpoint $YourPrivilegedEndpoint
     ```
-5. In the pop-up login window, enter your Azure subscription credentials.
 
 ## Verify the registration
 
@@ -85,6 +88,58 @@ Register-AzureRmResourceProvider -ProviderNamespace Microsoft.AzureStack
 
 > [!NOTE]
 > After registration is complete, the active warning for not registering will no longer appear.
+
+## Modify the registration
+
+If you would like to change the billing model or the subscription of your registration you must first run Remove-AzsRegistration, ensure you are logged in to the correct Azure Powershell context, and then run Set-AzsRegistration with any changed parameters
+
+```Powershell
+Remove-AzsRegistration -CloudAdminCredential $YourCloudAdminCredential -PrivilegedEndpoint $YourPrivilegedEndpoint
+Set-AzureRmContext -SubscriptionId $NewSubscriptionId
+Set-AzsRegistration -CloudAdminCredential $YourCloudAdminCredential -PrivilegedEndpoint $YourPrivilegedEndpoint -BillingModel PayAsYouUse
+```
+
+## Disconnected registration
+
+If you are registering Azure Stack in a disconnected environment you will need to get a registration token from the AzureStack environment and then use that token on a machine that can connect to Azure for registration.
+
+AzureStack Environment
+1. Get registration token
+```Powershell
+$FilePathForRegistrationToken = $env:SystemDrive\RegistrationToken.txt
+
+$RegistrationToken = Get-AzsRegistrationToken -CloudAdminCredential $YourCloudAdminCredential -PrivilegedEndpoint $YourPrivilegedEndpoint -BillingModel Capacity -AgreementNumber -TokenOutputFilePath $FilePathForRegistrationToken
+```
+2. Save this registration token for use in the Azure connected machine
+
+Azure Connected Machine
+1. Copy the [RegisterWithAzure.psm1 script](https://go.microsoft.com/fwlink/?linkid=842959) to a folder (such as C:\Temp).
+2. Start PowerShell ISE as an administrator and import the RegisterWithAzure module.    
+3. Ensure you are logged into the correct Azure Powershell context that you want to register your Azure Stack environment with
+
+    ```Powershell
+    Set-AzureRmContext -SubscriptionId $YourAzureSubscriptionId
+    ```
+4. Use the registration token to register with Azure
+
+```Powershell
+$registrationToken = "*Your Registration Token*"
+Register-AzsEnvironment -RegistrationToken $registrationToken
+```
+
+> [NOTE!]
+> You must save either the registration resource name or the registration token for future reference
+
+If you want to remove the registration resource then you must use UnRegister-AzsEnvironment and pass in either the registration resource name or the registration token used for Register-AzsEnvironment
+
+```Powershell
+UnRegister-AzsEnvironment -RegistrationName "*Name of the registration resource*"
+```
+or
+```Powershell
+$registrationToken = "*Your copied registration token*"
+UnRegister-AzsEnvironment -RegistrationToken $registrationToken
+```
 
 ## Next steps
 
